@@ -1769,7 +1769,38 @@ section("53. 档位必须按**强度**排序（位置 = 强度）—— Qoder CN
   eq(ticks[0].style.left, I.knobOffsetOf(0), "[53] 最左刻度就是「关闭思考」的位置");
   eq(ticks[3].style.left, I.knobOffsetOf(1), "[53] 最右刻度就是「最大」的位置");
 
-  // ⑨ 强度表必须与 dsh-our-free-model 的权威表同源（防两处漂移）
+  /* ⚠️ 上面 ①–⑧ 里，只有「能量拉满」这一条真的能抓住「levelsOf 忘了调用排序」。
+     其余断言都在测 sortLevelsByStrength 这个纯函数本身 —— 把 `return sortLevelsByStrength(out)`
+     改回 `return out`，它们照样全绿（实测：21 项里只有 1 项转红）。
+     纯函数测得再细也证明不了接线，所以下面补三条**只可能来自接线**的断言：
+     直接比对 levelsOf() 的输出与输入顺序，以及每个档位真实渲染到的轨道位置。 */
+
+  // ⑨ 接线：levelsOf() 的输出顺序必须是强度序（而不是目录原序）
+  const snapshot = d.host.store.getSnapshot();
+  eqj(ids(I.levelsOf(snapshot)), ["none", "low", "high", "max"],
+    "[53] levelsOf() 真的排了序（不是只导出了个排序函数）");
+  // 反向锚点：目录原序确实不是强度序，否则上面那条断言恒真
+  eqj(CN.reasoning.efforts.map((e) => e.id), ["high", "max", "low", "none"],
+    "[53] 反向前提：喂进去的目录原序确实不是强度序");
+
+  // ⑩ 接线：每个档位的刻度位置都按强度序算出来（不只是首尾两端）
+  const byId = {};
+  for (let i = 0; i < ticks.length; i += 1) byId[I.levelsOf(snapshot)[i].id] = ticks[i].style.left;
+  eq(byId.none, I.knobOffsetOf(0), "[53] 「关闭思考」刻度在 pct=0");
+  eq(byId.low, I.knobOffsetOf(1 / 3), "[53] 「低」刻度在 pct=1/3");
+  eq(byId.high, I.knobOffsetOf(2 / 3), "[53] 「高」刻度在 pct=2/3");
+  eq(byId.max, I.knobOffsetOf(1), "[53] 「最大」刻度在 pct=1");
+
+  // ⑪ 接线：收起态的档位文字必须来自排序后的列表
+  //     桥按**文字**认官方席按钮上那一段（seatLabels），而 seatLabels 由 levels 派生。
+  //     排序若没接上，席上那个「最大」就认不出来、也就不会着色 —— 用颜色证明它被认到了。
+  //     ⚠️ 席上的文字必须与目录里真实的档位名一致（这里是「最大」），否则认不到是必然的。
+  const d2 = await setup({ host: { model: CN }, menu: { effortLabel: "最大" } });
+  const seatEl = d2.menu.seatEffortEl;
+  ok(seatEl.style.color && seatEl.style.color.length > 0,
+    "[53] 收起态席按钮上的「最大」被按排序后的档位名认到并着色");
+
+  // ⑫ 强度表必须与 dsh-our-free-model 的权威表同源（防两处漂移）
   eq(Object.keys(I.REASONING_EFFORT_RANK).sort().join(","),
     ["extra_high", "high", "light", "low", "max", "medium", "minimal", "none", "off", "on", "ultra", "xhigh"].sort().join(","),
     "[53] 强度表覆盖 reasoning-ladder.ts 的全部 12 个 id");
